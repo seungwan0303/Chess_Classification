@@ -1,9 +1,9 @@
+import torchvision
 from torchvision import models
 import torch.nn as nn
 import torch.optim as optim
-import torchvision
-from torchvision import transforms
 from dataload import *
+from torchvision import transforms
 
 import time
 import copy
@@ -30,14 +30,10 @@ valid_data = torchvision.datasets.ImageFolder(root=valid_paths)
 test_data = torchvision.datasets.ImageFolder(root=test_paths)
 
 train_dataset = CustomDataset(train_data, transforms)
-
-# DataLoad = {
-#              'Train' : DataLoader(CustomDataset(train_data), batch_size=batch_size, shuffle=True, num_workers=5),
-#              'Test' : DataLoader(CustomDataset(test_data),batch_size=batch_size, shuffle=False, num_workers=5),
-#              'Valid' : DataLoader(CustomDataset(valid_data),batch_size=batch_size, shuffle=False, num_workers=5)
-# }
+valid_dataset = CustomDataset(valid_data,transforms)
 
 train_load = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=5)
+valid_load = DataLoader(valid_dataset,batch_size=batch_size, shuffle=False, num_workers=5)
 
 def resnet50():
     model = models.resnet50(pretrained=True)
@@ -83,29 +79,82 @@ def train(model, train_load, train_dataset, optimizer):
 
     return _train_loss, _train_accuracy
 
-def validate():
-    pass
+def validate(model, valid_load, criterion):
+    model.eval()
 
-epochs = 20
+    valid_loss = 0.0
+    valid_corrects = 0
+
+    with torch.no_grad():
+        for inputs, labels in valid_load:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            # 순전파
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            valid_loss += loss.item() * inputs.size(0)
+
+            # TORCH.MAX가 뽑는 값을 이용하여 CHESS CLASSIFICATION 진행하기
+            _, preds = torch.max(outputs, 1)
+            valid_corrects += torch.sum(preds == labels.data)
+
+    validation_loss = valid_loss / (len(valid_dataset) / batch_size)
+    validation_accuracy = 100. * valid_corrects / len(valid_dataset)
+
+    return validation_loss, validation_accuracy
+
+def set_model_mode(mode):
+    if mode == 'train':
+        train(model, train_load, train_dataset, optimizer)
+    elif mode == 'eval':
+        valid(model, valid_load, criterion)
+    else:
+        raise ValueError("Invalid mode! Choose between 'train' and 'eval'.")
+
+# 초기 모드는 학습 모드로 설정
+mode = 'train'
+epochs = 30
 lr = 0.001
 best_loss = 1000
 optimizer = optim.Adam(model.parameters(), lr=lr)
 criterion = nn.CrossEntropyLoss()
 
 if __name__ == '__main__':
+    user_input = input("Enter 't' for training mode, 'e' for evaluation mode, or 'q' to quit: ")
+
     for epoch in range(epochs):
-        print(f'-------epoch {epoch + 1}')
+        if user_input == 'train':
+            if mode != 'train':
+                mode = 'train'
+                print(f'-------epoch {epoch + 1}')
+                train_loss, train_accuracy = set_model_mode(mode)
 
-        phase = ['train', 'valid'] if (epoch + 1) / 10 == 0 else ['train']
+            if best_loss > train_loss:
+                best_model = model.state_dict()
+                best_loss = train_loss
 
-        train_loss, train_accuracy = train(model, train_load, train_dataset, optimizer)
+                print('train accuracy:', train_accuracy)
+                print('train loss:', train_loss)
 
-        if best_loss > train_loss:
-            best_model = model.state_dict()
-            best_loss = train_loss
+                torch.save(best_model, f'./{epochs}_{best_loss}.pth')
 
-        print('train accuracy:', train_accuracy)
-        print('train loss:', train_loss)
+        elif user_input == 'eval':
+            if mode != 'eval':
+               mode = 'eval'
+               print(f'-------epoch {epoch + 1}')
+               valid_loss, valid_accuracy = set_model_mode(mode)
 
-    torch.save(best_model, f'./{epochs}_{best_loss}.pth')
+               if best_loss > valid_loss:
+                  best_model = model.state_dict()
+                  best_loss = valid_loss
 
+               print('valid accuracy:', valid_accuracy)
+               print('valid loss:', valid_loss)
+
+        elif user_input == 'quit':
+            print("Exiting...")
+            break
+
+        else:
+            print("Invalid input! Please enter 'train', 'valid', or 'quit'.")
