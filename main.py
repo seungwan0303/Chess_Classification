@@ -1,3 +1,5 @@
+import sys
+
 import torchvision
 from torchvision import models
 import torch.nn as nn
@@ -18,7 +20,7 @@ file_paths = 'Chessman-image-dataset'
 train_paths = 'Chessman-image-dataset/train'
 valid_paths = 'Chessman-image-dataset/valid'
 test_paths = 'Chessman-image-dataset/test'
-batch_size=16
+batch_size = 16
 
 transforms = transforms.Compose([transforms.Resize((224, 224)),
                                  transforms.ToTensor(),
@@ -52,14 +54,15 @@ def train(model, train_load, train_dataset, optimizer):
 
     pbar = tqdm.tqdm(train_load, unit='batch')
     for img, label in pbar:
+        # print('aaa')
         img = img.to(device)
         label = label.to(device)
 
         optimizer.zero_grad()
 
         outputs = model(img)
-        print(outputs.data)
-        print(outputs.data.shape)
+        # print(outputs.data)
+        # print(outputs.data.shape)
         # sys.exit()
 
         loss = criterion(outputs, label)
@@ -74,61 +77,62 @@ def train(model, train_load, train_dataset, optimizer):
         loss.backward()
         optimizer.step()
 
-    _train_loss = train_running_loss / (len(train_dataset) / batch_size)
-    _train_accuracy = 100. * train_running_correct / len(train_dataset)
+    train_loss = train_running_loss / (len(train_dataset) / batch_size)
+    train_accuracy = 100. * train_running_correct / len(train_dataset)
 
-    return _train_loss, _train_accuracy
+    return train_loss, train_accuracy
 
-def validate(model, valid_load, criterion):
+def validate(model, valid_load, valid_dataset, criterion):
     model.eval()
 
-    valid_loss = 0.0
-    valid_corrects = 0
+    validation_loss = 0.0
+    validation_corrects = 0
+
+    pbar = tqdm.tqdm(valid_load, unit='batch')
 
     with torch.no_grad():
-        for inputs, labels in valid_load:
+        for inputs, labels in pbar:
             inputs = inputs.to(device)
             labels = labels.to(device)
 
             # 순전파
             outputs = model(inputs)
             loss = criterion(outputs, labels)
-            valid_loss += loss.item() * inputs.size(0)
+            validation_loss += loss.item() * inputs.size(0)
 
             # TORCH.MAX가 뽑는 값을 이용하여 CHESS CLASSIFICATION 진행하기
             _, preds = torch.max(outputs, 1)
-            valid_corrects += torch.sum(preds == labels.data)
+            validation_corrects += torch.sum(preds == labels.data)
 
-    validation_loss = valid_loss / (len(valid_dataset) / batch_size)
-    validation_accuracy = 100. * valid_corrects / len(valid_dataset)
+        valid_loss = validation_loss / (len(valid_dataset) / batch_size)
+        valid_accuracy = 100. * validation_corrects / len(valid_dataset)
 
-    return validation_loss, validation_accuracy
+    return valid_loss, valid_accuracy
 
 def set_model_mode(mode):
     if mode == 'train':
-        train(model, train_load, train_dataset, optimizer)
+        return train(model, train_load, train_dataset, optimizer)
     elif mode == 'eval':
-        valid(model, valid_load, criterion)
+        return validate(model, valid_load, valid_dataset, criterion)
     else:
         raise ValueError("Invalid mode! Choose between 'train' and 'eval'.")
 
-# 초기 모드는 학습 모드로 설정
-mode = 'train'
-epochs = 30
-lr = 0.001
-best_loss = 1000
-optimizer = optim.Adam(model.parameters(), lr=lr)
-criterion = nn.CrossEntropyLoss()
-
 if __name__ == '__main__':
-    user_input = input("Enter 't' for training mode, 'e' for evaluation mode, or 'q' to quit: ")
+    # 초기 모드 설정
+    mode = input("Enter 'train' for training mode, 'eval' for evaluation mode: ")
+    key = mode
 
-    for epoch in range(epochs):
-        if user_input == 'train':
-            if mode != 'train':
-                mode = 'train'
-                print(f'-------epoch {epoch + 1}')
-                train_loss, train_accuracy = set_model_mode(mode)
+    epochs = 30
+    lr = 0.001
+    best_loss = 1000
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    criterion = nn.CrossEntropyLoss()
+
+    if key == 'train':
+        for epoch in range(epochs):
+            print(f'-------epoch {epoch + 1}')
+
+            train_loss, train_accuracy = set_model_mode(key)
 
             if best_loss > train_loss:
                 best_model = model.state_dict()
@@ -139,22 +143,22 @@ if __name__ == '__main__':
 
                 torch.save(best_model, f'./{epochs}_{best_loss}.pth')
 
-        elif user_input == 'eval':
-            if mode != 'eval':
-               mode = 'eval'
-               print(f'-------epoch {epoch + 1}')
-               valid_loss, valid_accuracy = set_model_mode(mode)
+    elif key == 'eval':
+        for epoch in range(epochs):
+            print(f'-------epoch {epoch + 1}')
 
-               if best_loss > valid_loss:
-                  best_model = model.state_dict()
-                  best_loss = valid_loss
+            valid_loss, valid_accuracy = set_model_mode(key)
 
-               print('valid accuracy:', valid_accuracy)
-               print('valid loss:', valid_loss)
+            if best_loss > valid_loss:
+                best_model = model.state_dict()
+                best_loss = valid_loss
 
-        elif user_input == 'quit':
-            print("Exiting...")
-            break
+                print('valid accuracy:', valid_accuracy)
+                print('valid loss:', valid_loss)
 
-        else:
-            print("Invalid input! Please enter 'train', 'valid', or 'quit'.")
+                torch.save(best_model, f'./{epochs}_{best_loss}.pth')
+
+    elif key == 'quit':
+        print("Exiting...")
+    else:
+        print("Invalid input! Please enter 'train', 'valid', or 'quit'.")
