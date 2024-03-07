@@ -54,7 +54,6 @@ def train(model, train_load, train_dataset, optimizer):
 
     pbar = tqdm.tqdm(train_load, unit='batch')
     for img, label in pbar:
-        # print('aaa')
         img = img.to(device)
         label = label.to(device)
 
@@ -66,13 +65,13 @@ def train(model, train_load, train_dataset, optimizer):
         # sys.exit()
 
         loss = criterion(outputs, label)
-        train_running_loss += loss.item()
 
         _, preds = torch.max(outputs.data, 1)
-        # print('preds', preds)
-        # print('labels:', label)
 
+        train_running_loss += loss.item()
         train_running_correct += (preds == label).sum().item()
+
+        print(label)
 
         loss.backward()
         optimizer.step()
@@ -102,10 +101,16 @@ def validate(model, valid_load, valid_dataset, criterion):
 
             # TORCH.MAX가 뽑는 값을 이용하여 CHESS CLASSIFICATION 진행하기
             _, preds = torch.max(outputs, 1)
-            validation_corrects += torch.sum(preds == labels.data)
+
+            validation_loss += (preds == labels).sum().item()
+            validation_corrects += (preds == labels).sum().item()
 
         valid_loss = validation_loss / (len(valid_dataset) / batch_size)
         valid_accuracy = 100. * validation_corrects / len(valid_dataset)
+
+        print(len(valid_dataset))
+        print(validation_loss)
+        print(validation_corrects)
 
     return valid_loss, valid_accuracy
 
