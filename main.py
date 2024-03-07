@@ -16,6 +16,8 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
+# 변수 선언부
+
 file_paths = 'Chessman-image-dataset'
 train_paths = 'Chessman-image-dataset/train'
 valid_paths = 'Chessman-image-dataset/valid'
@@ -58,20 +60,13 @@ def train(model, train_load, train_dataset, optimizer):
         label = label.to(device)
 
         optimizer.zero_grad()
-
         outputs = model(img)
-        # print(outputs.data)
-        # print(outputs.data.shape)
-        # sys.exit()
-
         loss = criterion(outputs, label)
 
         _, preds = torch.max(outputs.data, 1)
 
         train_running_loss += loss.item()
         train_running_correct += (preds == label).sum().item()
-
-        print(label)
 
         loss.backward()
         optimizer.step()
@@ -97,7 +92,7 @@ def validate(model, valid_load, valid_dataset, criterion):
             # 순전파
             outputs = model(inputs)
             loss = criterion(outputs, labels)
-            validation_loss += loss.item() * inputs.size(0)
+            validation_loss += loss.item()
 
             # TORCH.MAX가 뽑는 값을 이용하여 CHESS CLASSIFICATION 진행하기
             _, preds = torch.max(outputs, 1)
@@ -107,10 +102,6 @@ def validate(model, valid_load, valid_dataset, criterion):
 
         valid_loss = validation_loss / (len(valid_dataset) / batch_size)
         valid_accuracy = 100. * validation_corrects / len(valid_dataset)
-
-        print(len(valid_dataset))
-        print(validation_loss)
-        print(validation_corrects)
 
     return valid_loss, valid_accuracy
 
@@ -143,10 +134,10 @@ if __name__ == '__main__':
                 best_model = model.state_dict()
                 best_loss = train_loss
 
-                print('train accuracy:', train_accuracy)
-                print('train loss:', train_loss)
+            print('train accuracy:', train_accuracy)
+            print('train loss:', train_loss)
 
-                torch.save(best_model, f'./{epochs}_{best_loss}.pth')
+            torch.save(best_model, f'./{epochs}_{best_loss}.pth')
 
     elif key == 'eval':
         for epoch in range(epochs):
@@ -158,12 +149,13 @@ if __name__ == '__main__':
                 best_model = model.state_dict()
                 best_loss = valid_loss
 
-                print('valid accuracy:', valid_accuracy)
-                print('valid loss:', valid_loss)
+            print('valid accuracy:', valid_accuracy)
+            print('valid loss:', valid_loss)
 
-                torch.save(best_model, f'./{epochs}_{best_loss}.pth')
+            torch.save(best_model, f'./{epochs}_{best_loss}.pth')
 
     elif key == 'quit':
         print("Exiting...")
+
     else:
         print("Invalid input! Please enter 'train', 'valid', or 'quit'.")
